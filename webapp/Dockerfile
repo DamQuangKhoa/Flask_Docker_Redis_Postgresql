@@ -5,7 +5,6 @@ COPY ./uwsgi_flask_nginx/uwsgi_timeout.conf /etc/nginx/conf.d/
 COPY ./uwsgi_flask_nginx/nginx.conf /etc/nginx/
 COPY ./uwsgi_flask_nginx/supervisord/rq_worker.ini /etc/supervisor.d/
 
-RUN pip install --upgrade pip
 
 RUN apk add --no-cache postgresql-dev gcc python3 python3-dev musl-dev && \
   python3 -m ensurepip && \

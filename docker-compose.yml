@@ -6,7 +6,7 @@ services:
     image: webapp
     container_name: webapp
     ports:
-      - "0.0.0.0:5000:80"
+      - "0.0.0.0:5000:5000"
     depends_on:
       - redis
       - db
@@ -20,3 +20,7 @@ services:
     env_file: .env
     expose:
       - 5432
+    ports:
+      - 54320:5432
+    # volumes:
+    #   - ${PWD}/../postgre_data:/var/lib/postgresql/data

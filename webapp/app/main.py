@@ -8,157 +8,141 @@ from flask_sqlalchemy import SQLAlchemy
 from long_task_package.long_task import long_task
 from long_task_package.long_task import parallel_long_task
 
+from flask_restful import Api, Resource, reqparse
+import os
+from dotenv import load_dotenv
+
+from sqlalchemy import Column, Integer, String, Float
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+
+
+# app = Flask(__name__)
+# # REDIS_URL = 'redis://redis:6379/0'
+# # REDIS_QUEUES = ['default']
+
+
+# # DBUSER = 'ted'
+# # DBPASS = 'ted'
+# # DBHOST = 'db'
+# # DBPORT = '54320'
+# # DBNAME = 'sendodb'
+
+# # app.config['SQLALCHEMY_DATABASE_URI'] = \
+# #     'postgresql+psycopg2://{user}:{passwd}@{host}:{port}/{db}'.format(
+# #         user=DBUSER,
+# #         passwd=DBPASS,
+# #         host=DBHOST,
+# #         port=DBPORT,
+# #         db=DBNAME)
+# # app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# # app.secret_key = 'ted'
+
+
+# # db = SQLAlchemy(app)
+# # r = redis.Redis()
+# # q = Queue(connection=r)
+
 app = Flask(__name__)
-REDIS_URL = 'redis://redis:6379/0'
-REDIS_QUEUES = ['default']
+api = Api(app)
+#
+# Load Environment variable
+APP_ROOT = os.path.join(os.path.dirname(__file__), '.')
+dotenv_path = os.path.join(APP_ROOT, ".env")
+print('Loading environment variables in ', dotenv_path)
+load_dotenv(dotenv_path)
+
+# Database Config
+postgre_address = os.getenv('POSTGRE_ADDRESS')
+postgre_database = os.getenv('POSTGRE_DATABASE')
+postgre_user = os.getenv('POSTGRE_USER')
+postgre_password = os.getenv('POSTGRE_PASSWORD')
+posgre_port = os.getenv('POSTGRE_PORT')
+
+# Print Maria config to examinate
+print('Postgre IP: ', postgre_address)
+print('Postgre Database Name: ', postgre_database)
+print('Postgre user: ', postgre_user)
+print('Postgre password: ', postgre_password)
+print('Postgre Port: ', posgre_port)
+
+app = Flask(__name__)
+api = Api(app)
+
+# Engine
+Base = declarative_base()
+db_string = 'postgres://ted:ted@172.18.0.1:54320/sendodb'
+engine = create_engine(db_string)
+
+# Schema
 
 
-DBUSER = 'ted'
-DBPASS = 'ted'
-DBHOST = 'db'
-DBPORT = '5432'
-DBNAME = 'sendodb'
-
-app.config['SQLALCHEMY_DATABASE_URI'] = \
-    'postgresql+psycopg2://{user}:{passwd}@{host}:{port}/{db}'.format(
-        user=DBUSER,
-        passwd=DBPASS,
-        host=DBHOST,
-        port=DBPORT,
-        db=DBNAME)
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.secret_key = 'ted'
+class Users(Base):
+    __tablename__ = 'users'
+    user_id = Column(String, primary_key=True)
+    username = Column(String)
+    password = Column(String)
+    mac_address = Column(String)
+    last_activity = Column(String)
 
 
-db = SQLAlchemy(app)
-r = redis.Redis()
-q = Queue(connection=r)
+class Category(Base):
+    __tablename__ = 'category'
+    cate3_id_new = Column(String, primary_key=True)
+    cate1_id, cate1_name = Column(String), Column(String)
+    cate2_id, cate2_name = Column(String), Column(String)
+    cate3_id, cate3_name = Column(String), Column(String)
 
 
-class students(db.Model):
-    id = db.Column('student_id', db.Integer, primary_key=True)
-    name = db.Column(db.String(100))
-    city = db.Column(db.String(50))
-    addr = db.Column(db.String(200))
-
-    def __init__(self, name, city, addr):
-        self.name = name
-        self.city = city
-        self.addr = addr
+class Product(Base):
+    __tablename__ = 'products'
+    product_id = Column(String, primary_key=True)
+    product_name = Column(String)
+    uri = Column(String)
+    oldprice = Column(Float)
+    price = Column(Float)
+    status = Column(Integer)
 
 
-def database_initialization_sequence():
-    db.create_all()
-    test_rec = students(
-        'John Doe',
-        'Los Angeles',
-        '123 Foobar Ave')
-
-    db.session.add(test_rec)
-    db.session.rollback()
-    db.session.commit()
+class Cate_Prod(Base):
+    __tablename__ = 'cate_product'
+    id = Column(String, primary_key=True)
+    cate3_id_new = Column(String)
+    product_id = Column(String)
 
 
-def background_task(n):
-    """ Function that returns len(n) and simulates a delay """
-
-    delay = 2
-
-    print("Task running")
-    # print(f"Simulating a {delay} second delay")
-
-    time.sleep(delay)
-
-    print(len(n))
-    print("Task complete")
-
-    return len(n)
+# API Class
+category_parser = reqparse.RequestParser()
+category_parser.add_argument('cate1_id', type=str, required=False)
 
 
-@app.route("/")
-def index():
-    if request.args.get("n"):
+class Cate1(Resource):
+    def get(self):
+        try:
+            args = category_parser.parse_args()
+            cate1_id = args["cate1_id"]
+            print("HELLO: ", cate1_id)
 
-        job = q.enqueue(background_task, request.args.get("n"))
+            Session = sessionmaker(bind=engine)
+            session = Session()
 
-        return f"Task ({job.id}) added to queue at {job.enqueued_at}"
+            result = session.query(Category)\
+                .filter(Category.cate1_id == cate1_id).distinct(Category.cate2_id)
 
-    return "No value for count provided"
+            print("RESULT: ", result)
 
+            result = list(map(lambda x: x.cate2_id, result))
 
-@app.route('/long_task', methods=['POST'])
-def run_long_task():
-    task_duration = 1000
-    with Connection(redis.from_url(REDIS_URL)):
-        q = Queue()
-        # task need to be executed within the specified timeout
-        task = q.enqueue(long_task, task_duration, timeout=1200)
-    response_object = {
-        'status': 'success',
-        'data': {
-            'task_id': task.get_id()
-        }
-    }
-    return jsonify(response_object), 202
+            print("BEAUTIFUL: ", result)
+
+            return {"result": result, "status": 200}
+        except:
+            return {"status": 500}
 
 
-@app.route('/parallel_long_task', methods=['POST'])
-def run_parallel_long_task():
-    task_duration = int(request.form['duration'])
-    with Connection(redis.from_url(REDIS_URL)):
-        q = Queue()
-        # task need to be executed within the specified timeout
-        task = q.enqueue(parallel_long_task, task_duration, timeout=1200)
-    response_object = {
-        'status': 'success',
-        'data': {
-            'task_id': task.get_id()
-        }
-    }
-    return jsonify(response_object), 202
-
-
-@app.route('/tasks/<task_id>', methods=['GET'])
-def get_status(task_id):
-    with Connection(redis.from_url(REDIS_URL)):
-        q = Queue()
-        task = q.fetch_job(task_id)
-    if task:
-        response_object = {
-            'status': 'success',
-            'data': {
-                'task_id': task.get_id(),
-                'task_status': task.get_status(),
-                'task_result': task.result
-            }
-        }
-
-        if task.is_failed:
-            response_object = {
-                'status': 'failed',
-                'data': {
-                    'task_id': task.get_id(),
-                    'message': task.exc_info.strip().split('\n')[-1]
-                }
-            }
-    else:
-        response_object = {
-            'status': 'ERROR: Unable to fetch the task from RQ'
-        }
-    return jsonify(response_object)
-
+# Routing
+api.add_resource(Cate1, "/cate1")
 
 if __name__ == '__main__':
-    # Only for debugging while developing
-    # app.run(host='0.0.0.0', debug=True, port=80)
-    dbstatus = False
-    while dbstatus == False:
-        try:
-            db.create_all()
-        except:
-            time.sleep(2)
-        else:
-            dbstatus = True
-    database_initialization_sequence()
-    app.run(debug=True, host='0.0.0.0')
-    pass
+    app.run(debug=True, host="0.0.0.0")
